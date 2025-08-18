@@ -21,7 +21,12 @@ const forms: {
   student: (type, data) => <StudentForm type={type} data={data} />,
 };
 
-const FormModal = ({ table, type, data, id }: {
+const FormModal = ({
+  table,
+  type,
+  data,
+  id
+}: {
   table:
   | "teacher"
   | "student"
@@ -35,10 +40,9 @@ const FormModal = ({ table, type, data, id }: {
   | "attendance"
   | "event"
   | "announcement";
-  type:
-  "create" | "update" | "delete";
+  type: "create" | "update" | "delete";
   data?: any;
-  id?: number;
+  id?: number | string;
 }) => {
 
   const size = type === "create" ? "w-8 h-8" : "w-7 h-7";
@@ -60,7 +64,7 @@ const FormModal = ({ table, type, data, id }: {
       </form>
     ) : type === "create" || type === "update" ? (
       forms[table](type, data)
-    ) : "Form not found!";
+    ) : ("Form not found!");
   };
 
   return (
