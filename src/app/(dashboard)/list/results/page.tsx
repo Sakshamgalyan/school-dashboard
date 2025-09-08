@@ -5,6 +5,8 @@ import TableSearch from "@/components/TableSearch"
 import { resultsData, role } from "@/lib/data"
 import prisma from "@/lib/prisma"
 import { ITEM_PER_PAGE } from "@/lib/settings"
+import { getUserID, getUserRole } from "@/lib/utils"
+import { currentUser } from "@clerk/nextjs/server"
 import { Prisma, Result } from "@prisma/client"
 import Image from "next/image"
 import Link from "next/link"
@@ -26,6 +28,8 @@ const ResultListPage = async ({ searchParams }: { searchParams: { [key: string]:
 
     const { page, ...queryParams } = searchParams;
     const p = page ? parseInt(page) : 1;
+    const role = await getUserRole();
+    const currentUserId = await getUserID();
 
     // URL Search Params 
 
@@ -49,6 +53,25 @@ const ResultListPage = async ({ searchParams }: { searchParams: { [key: string]:
                 }
             }
         }
+    }
+
+    switch (role) {
+        case "admin":
+            break;
+        case "teacher":
+            query.OR = [
+                { exam: { lesson: { teacherId: currentUserId! } } },
+                { assignment: { lesson: { teacherId: currentUserId! } } },
+            ]
+            break;
+        case "student":
+            query.studentId = currentUserId!;
+            break;
+        case "parent":
+            query.student = { parentId: currentUserId! };
+            break;
+        default:
+            break;
     }
 
     const [dataRes, count] = await prisma.$transaction([
