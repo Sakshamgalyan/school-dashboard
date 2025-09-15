@@ -1,21 +1,26 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import {
   ClassSchema,
+  ExamSchema,
+  LessonSchema,
+  ParentSchema,
   StudentSchema,
   SubjectSchema,
   TeacherSchema,
 } from "./formValidationSchemas";
 import prisma from "./prisma";
-import { clerkClient } from "@clerk/nextjs/server";
+import bcrypt from "bcryptjs";
 
-type CurrentState = { success: boolean; error: boolean };
+type ActionState = {
+  success: boolean;
+  error: string | boolean;
+};
 
 // Actions for subjects like create, update and delete
 
 export const createSubject = async (
-  currentstate: CurrentState,
+  currentstate: ActionState,
   data: SubjectSchema
 ) => {
   try {
@@ -38,7 +43,7 @@ export const createSubject = async (
 };
 
 export const updateSubject = async (
-  currentstate: CurrentState,
+  currentstate: ActionState,
   data: SubjectSchema
 ) => {
   try {
@@ -62,7 +67,7 @@ export const updateSubject = async (
 };
 
 export const deleteSubject = async (
-  currentstate: CurrentState,
+  currentstate: ActionState,
   data: FormData
 ) => {
   try {
@@ -83,7 +88,7 @@ export const deleteSubject = async (
 // Actions for Class like create, update and delete
 
 export const createClass = async (
-  currentstate: CurrentState,
+  currentstate: ActionState,
   data: ClassSchema
 ) => {
   try {
@@ -99,7 +104,7 @@ export const createClass = async (
 };
 
 export const updateClass = async (
-  currentstate: CurrentState,
+  currentstate: ActionState,
   data: ClassSchema
 ) => {
   try {
@@ -118,7 +123,7 @@ export const updateClass = async (
 };
 
 export const deleteClass = async (
-  currentstate: CurrentState,
+  currentstate: ActionState,
   data: FormData
 ) => {
   try {
@@ -139,23 +144,44 @@ export const deleteClass = async (
 // Actions for Teacher like create, update and delete
 
 export const createTeacher = async (
-  currentstate: CurrentState,
+  currentstate: ActionState,
   data: TeacherSchema
 ) => {
   try {
-    const clerk = await clerkClient();
-    const user = await clerk.users.createUser({
-      username: data.username,
-      password: data.password,
-      firstName: data.name,
-      lastName: data.surname,
-      publicMetadata:{role:"teacher"},
+    if (!data.password) {
+      return {
+        success: false,
+        error: "Password is required to create a teacher.",
+      };
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { username: data.username },
+    });
+
+    if (existingUser) {
+      return {
+        success: false,
+        error: "Username already exists",
+      };
+    }
+
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        id: data.id,
+        username: data.username,
+        email: data.email,
+        name: data.name,
+        password: hashedPassword,
+        role: "TEACHER",
+      },
     });
 
     await prisma.teacher.create({
       data: {
         id: user.id,
-        username: data.username,
         name: data.name,
         surname: data.surname,
         email: data.email,
@@ -164,7 +190,7 @@ export const createTeacher = async (
         img: data.img,
         bloodType: data.bloodType,
         sex: data.sex,
-        birthday: data.birthday,
+        birthday: new Date(data.birthday),
         subjects: {
           connect: data.subjects?.map((subjectId: string) => ({
             id: parseInt(subjectId),
@@ -175,34 +201,56 @@ export const createTeacher = async (
 
     return { success: true, error: false };
   } catch (err) {
-    console.log(err);
-    return { success: false, error: true };
+    return { success: false, error: "Failed to create teacher." };
   }
 };
 
 export const updateTeacher = async (
-  currentstate: CurrentState,
+  currentstate: ActionState,
   data: TeacherSchema
 ) => {
   if (!data.id) {
-    return { success: false, error: true };
+    return { success: false, error: "Teacher ID is required." };
   }
+
   try {
-    const clerk = await clerkClient();
-    const user = await clerk.users.updateUser(data.id, {
-      username: data.username,
-      ...(data.password != "" && { password: data.password }),
-      firstName: data.name,
-      lastName: data.surname,
+    if (!data.password) {
+      return {
+        success: false,
+        error: "Password is required to update a teacher.",
+      };
+    }
+
+    const checkPassword = await prisma.user.findUnique({
+      where: { id: data.id },
+      select: { password: true },
+    });
+
+    if (!checkPassword || !checkPassword.password) {
+      return { success: false, error: "User Not found" };
+    }
+
+    const hashedPassword = bcrypt.compareSync(
+      data.password,
+      checkPassword.password
+    );
+
+    if (!hashedPassword) {
+      return { success: false, error: "Password is incorrect." };
+    }
+
+    await prisma.user.update({
+      where: { id: data.id },
+      data: {
+        username: data.username,
+        email: data.email,
+        name: data.name,
+      },
     });
 
     await prisma.teacher.update({
-      where: {
-        id: data.id,
-      },
+      where: { id: data.id },
       data: {
-        ...(data.password != "" && { password: data.password }),
-        username: data.username,
         name: data.name,
         surname: data.surname,
         email: data.email,
@@ -222,21 +270,270 @@ export const updateTeacher = async (
 
     return { success: true, error: false };
   } catch (err) {
-    console.log(err);
-    return { success: false, error: true };
+    return { success: false, error: "Failed to update teacher." };
   }
 };
 
 export const deleteTeacher = async (
-  currentstate: CurrentState,
+  currentstate: ActionState,
   data: FormData
 ) => {
   try {
     const id = data.get("id") as string;
-    
-    const clerk = await clerkClient();
-    await clerk.users.deleteUser(id)
-    await prisma.teacher.delete({
+
+    await prisma.teacher.deleteMany({
+      where: { id: id },
+    });
+
+    await prisma.user.delete({
+      where: { id },
+    });
+
+    return { success: true, error: false };
+  } catch (err) {
+    return { success: false, error: "Failed to delete teacher." };
+  }
+};
+
+// Actions for Student like create, update and delete
+
+export const createStudent = async (
+  currentState: ActionState,
+  data: StudentSchema
+) => {
+  try {
+    const classItem = await prisma.class.findUnique({
+      where: { id: data.classId },
+      include: { _count: { select: { students: true } } },
+    });
+
+    if (classItem && classItem.capacity === classItem._count.students) {
+      return { success: false, error: "Class is full" };
+    }
+
+    if (!data.password) {
+      return {
+        success: false,
+        error: "Password is required to create a teacher.",
+      };
+    }
+
+    const existingUser = await prisma.user.findUnique({
+      where: { username: data.username },
+    });
+
+    if (existingUser) {
+      return {
+        success: false,
+        error: "Username already exists",
+      };
+    }
+
+    const parent = await prisma.user.findUnique({
+      where: { username: data.parentUsername },
+      include: { Parent: true },
+    });
+
+    if (!parent || !parent.Parent) {
+      return { success: false, error: "Parent not found" };
+    }
+
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        id: data.id,
+        username: data.username,
+        email: data.email,
+        name: data.name,
+        password: hashedPassword,
+        role: "STUDENT",
+      },
+    });
+
+    await prisma.student.create({
+      data: {
+        id: user.id,
+        name: data.name,
+        surname: data.surname,
+        email: data.email || null,
+        phone: data.phone || null,
+        address: data.address,
+        img: data.img || null,
+        bloodType: data.bloodType,
+        sex: data.sex,
+        birthday: data.birthday,
+        gradeId: data.gradeId,
+        classId: data.classId,
+        parentId: parent.Parent.id,
+      },
+    });
+
+    // revalidatePath("/list/students");
+    return { success: true, error: false };
+  } catch (err) {
+    console.log(err);
+    return { success: false, error: "Failed to create student." };
+  }
+};
+
+export const updateStudent = async (
+  currentstate: ActionState,
+  data: StudentSchema
+) => {
+  if (!data.id) {
+    return { success: false, error: "Student ID is required." };
+  }
+
+  try {
+    if (!data.password) {
+      return {
+        success: false,
+        error: "Password is required to update a student.",
+      };
+    }
+
+    const checkPassword = await prisma.user.findUnique({
+      where: { id: data.id },
+      select: { password: true },
+    });
+
+    if (!checkPassword || !checkPassword.password) {
+      return { success: false, error: "User not found" };
+    }
+
+    const validPassword = bcrypt.compareSync(
+      data.password,
+      checkPassword.password
+    );
+
+    if (!validPassword) {
+      return { success: false, error: "Password is incorrect." };
+    }
+
+    // 🔎 find parent by username
+    let parentId: string | null = null;
+    if (data.parentUsername) {
+      const parent = await prisma.user.findUnique({
+        where: { username: data.parentUsername },
+        include: { Parent: true },
+      });
+
+      if (!parent || !parent.Parent) {
+        return { success: false, error: "Parent not found" };
+      }
+
+      parentId = parent.Parent.id;
+    }
+
+    await prisma.user.update({
+      where: { id: data.id },
+      data: {
+        username: data.username,
+        email: data.email,
+        name: data.name,
+      },
+    });
+
+    await prisma.student.update({
+      where: { id: data.id },
+      data: {
+        name: data.name,
+        surname: data.surname,
+        email: data.email,
+        phone: data.phone,
+        address: data.address,
+        img: data.img,
+        bloodType: data.bloodType,
+        sex: data.sex,
+        birthday: data.birthday,
+        gradeId: data.gradeId,
+        classId: data.classId,
+        parentId: parentId ?? undefined, // set resolved parent id
+      },
+    });
+
+    return { success: true, error: false };
+  } catch (err) {
+    console.error(err);
+    return { success: false, error: "Failed to update student." };
+  }
+};
+
+export const deleteStudent = async (
+  currentstate: ActionState,
+  data: FormData
+) => {
+  try {
+    const id = data.get("id") as string;
+
+    await prisma.student.deleteMany({
+      where: { id: id },
+    });
+
+    await prisma.user.delete({
+      where: { id },
+    });
+
+    // revalidatePath("/list/subjects");
+    return { success: true, error: false };
+  } catch (err) {
+    console.log(err);
+    return { success: false, error: "Failed to delete student." };
+  }
+};
+
+// Actions for Lesson like create, update and delete
+
+// export const createLesson = async (
+//   currentstate: CurrentState,
+//   data: LessonSchema
+// ) => {
+//   try {
+//     const id = data.get("id");
+//     const clerk = await clerkClient();
+//     await clerk.users.deleteUser(id);
+//     await prisma.student.delete({
+//       where: {
+//         id: id,
+//       },
+//     });
+//     // revalidatePath("/list/subjects");
+//     return { success: true, error: false };
+//   } catch (err) {
+//     console.log(err);
+//     return { success: false, error: true };
+//   }
+// };
+
+// export const updateLesson = async (
+//   currentstate: CurrentState,
+//   data: FormData
+// ) => {
+//   try {
+//     const id = data.get("id") as string;
+//     const clerk = await clerkClient();
+//     await clerk.users.deleteUser(id);
+//     await prisma.student.delete({
+//       where: {
+//         id: id,
+//       },
+//     });
+//     // revalidatePath("/list/subjects");
+//     return { success: true, error: false };
+//   } catch (err) {
+//     console.log(err);
+//     return { success: false, error: true };
+//   }
+// };
+
+export const deleteLesson = async (
+  currentstate: ActionState,
+  data: FormData
+) => {
+  try {
+    const id = data.get("id") as string;
+    await prisma.student.delete({
       where: {
         id: id,
       },
@@ -249,102 +546,187 @@ export const deleteTeacher = async (
   }
 };
 
-// Actions for Student like create, update and delete
+// Actions for Parent like create, update and delete
 
-export const createStudent = async (
-  currentState: CurrentState,
-  data: StudentSchema
+export const createParent = async (
+  currentState: ActionState,
+  data: ParentSchema
 ) => {
-  console.log("Creating student with data:", data);
   try {
-
-    const classItem = await prisma.class.findUnique({
-      where: { id: data.classId },
-      include: { _count: { select: { students: true } } },
+    if (!data.password) {
+      return {
+        success: false,
+        error: "Password is required to create a parent.",
+      };
+    }
+    const existingUser = await prisma.user.findUnique({
+      where: { username: data.username },
     });
 
-    if (classItem && classItem.capacity === classItem._count.students) {
-       console.log("Class is at full capacity");
-      return { success: false, error: true };
+    if (existingUser) {
+      return {
+        success: false,
+        error: "Username already exists",
+      };
     }
 
-    const clerk = await clerkClient();
-    const user = await clerk.users.createUser({
-      username: data.username,
-      password: data.password,
-      firstName: data.name,
-      lastName: data.surname,
-      publicMetadata:{role:"student"}
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        id: data.id,
+        username: data.username,
+        email: data.email,
+        name: data.name,
+        password: hashedPassword,
+        role: "PARENT",
+      },
     });
 
-    console.log("Clerk user created:", user.id);
-
-    await prisma.student.create({
+    await prisma.parent.create({
       data: {
         id: user.id,
-        username: data.username,
         name: data.name,
         surname: data.surname,
         email: data.email || null,
-        phone: data.phone || null,
+        phone: data.phone || "",
         address: data.address,
-        img: data.img || null,
-        bloodType: data.bloodType,
-        sex: data.sex,
-        birthday: data.birthday,
-        gradeId: data.gradeId,
-        classId: data.classId,
-        parentId: data.parentId,
       },
     });
-    console.log("Student created successfully");
 
     // revalidatePath("/list/students");
     return { success: true, error: false };
   } catch (err) {
-    console.log(err);
-    return { success: false, error: true };
+    return { success: false, error: "Failed to create Parent." };
   }
 };
 
-export const updateStudent = async (
-  currentstate: CurrentState,
-  data: StudentSchema
+export const updateParent = async (
+  currentstate: ActionState,
+  data: ParentSchema
 ) => {
   if (!data.id) {
-    return { success: false, error: true };
+    return { success: false, error: "Parent ID is required." };
   }
+
   try {
-    const clerk = await clerkClient();
-    const user = await clerk.users.updateUser(data.id, {
-      username: data.username,
-      ...(data.password != "" && { password: data.password }),
-      firstName: data.name,
-      lastName: data.surname,
+    if (!data.password) {
+      return {
+        success: false,
+        error: "Password is required to update a student.",
+      };
+    }
+
+    const checkPassword = await prisma.user.findUnique({
+      where: { id: data.id },
+      select: { password: true },
+    });
+
+    if (!checkPassword || !checkPassword.password) {
+      return { success: false, error: "User not found" };
+    }
+
+    const validPassword = bcrypt.compareSync(
+      data.password,
+      checkPassword.password
+    );
+
+    if (!validPassword) {
+      return { success: false, error: "Password is incorrect." };
+    }
+
+    await prisma.user.update({
+      where: { id: data.id },
+      data: {
+        username: data.username,
+        email: data.email,
+        name: data.name,
+      },
     });
 
     await prisma.student.update({
-      where: {
-        id: data.id,
-      },
+      where: { id: data.id },
       data: {
-        ...(data.password != "" && { password: data.password }),
-        username: data.username,
         name: data.name,
         surname: data.surname,
         email: data.email,
-        phone: data.phone,
+        phone: data.phone || "",
         address: data.address,
-        img: data.img,
-        bloodType: data.bloodType,
-        sex: data.sex,
-        birthday: data.birthday,
-        gradeId: data.gradeId,
-        classId: data.classId,
-        parentId: data.parentId,
       },
     });
 
+    return { success: true, error: false };
+  } catch (err) {
+    console.error(err);
+    return { success: false, error: "Failed to update student." };
+  }
+};
+
+export const deleteParent = async (
+  currentstate: ActionState,
+  data: FormData
+) => {
+  try {
+    const id = data.get("id") as string;
+
+    await prisma.parent.deleteMany({
+      where: { id: id },
+    });
+
+    await prisma.user.delete({
+      where: { id },
+    });
+
+    // revalidatePath("/list/subjects");
+    return { success: true, error: false };
+  } catch (err) {
+    console.log(err);
+    return { success: false, error: "Failed to delete parent." };
+  }
+};
+
+// Actions for Exam like create, update and delete
+
+// export const createExam = async (
+//   currentstate: ActionState,
+//   data: ExamSchema
+// ) => {
+//   try {
+//     await prisma.subject.create({
+//       data: {
+//         name: data.name,
+//         teachers: {
+//           connect: data.teachers.map((teacherId) => ({
+//             id: teacherId,
+//           })),
+//         },
+//       },
+//     });
+//     // revalidatePath("/list/subjects");
+//     return { success: true, error: false };
+//   } catch (err) {
+//     console.log(err);
+//     return { success: false, error: true };
+//   }
+// };
+
+export const updateExam = async (
+  currentstate: ActionState,
+  data: SubjectSchema
+) => {
+  try {
+    await prisma.subject.update({
+      where: {
+        id: data.id!,
+      },
+      data: {
+        name: data.name,
+        teachers: {
+          set: data.teachers.map((teacherId) => ({ id: teacherId })),
+        },
+      },
+    });
+    // revalidatePath("/list/subjects");
     return { success: true, error: false };
   } catch (err) {
     console.log(err);
@@ -352,18 +734,15 @@ export const updateStudent = async (
   }
 };
 
-export const deleteStudent = async (
-  currentstate: CurrentState,
+export const deleteExam = async (
+  currentstate: ActionState,
   data: FormData
 ) => {
   try {
-
     const id = data.get("id") as string;
-    const clerk = await clerkClient();
-    await clerk.users.deleteUser(id); 
-    await prisma.student.delete({
+    await prisma.subject.delete({
       where: {
-        id: id,
+        id: parseInt(id),
       },
     });
     // revalidatePath("/list/subjects");

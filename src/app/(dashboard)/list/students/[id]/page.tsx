@@ -3,9 +3,10 @@ import BigCalendarContainer from "@/components/BigCalendarContainer";
 import FormContainer from "@/components/FormContainer";
 import Performance from "@/components/Performance";
 import StudentAttendanceCard from "@/components/StudentAttendanceCard";
+import { getUserFromToken } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { getUserRole } from "@/lib/utils";
 import { Class, Student } from "@prisma/client";
+import { cookies } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -16,6 +17,16 @@ const SingleStudentPage = async ({
 }: {
   params: { id: string };
 }) => {
+
+  const cookieStore = cookies();
+    const token = cookieStore.get("token")?.value;
+    if (!token) return <div>Please login</div>;
+  
+    // Get user from token
+    const user = await getUserFromToken(token);
+    if (!user) return <div>User not found</div>;
+    const role = user.role.toLocaleLowerCase();
+
   const student:
     | (Student & { class: Class & { _count: { lessons: number } } })
     | null = await prisma.student.findUnique({
@@ -29,7 +40,6 @@ const SingleStudentPage = async ({
     return notFound();
   }
 
-  const role = await getUserRole();
   return (
     <div className="flex-1 p-4 flex flex-col gap-4 xl:flex-row">
       {/* Left */}
@@ -48,7 +58,7 @@ const SingleStudentPage = async ({
               />
             </div>
             <div className="w-2/3 flex flex-col justify-between gap-4">
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 justify-between">
                 <h1 className="text-xl font-semibold">
                   {student.name + " " + student.surname}
                 </h1>
@@ -182,31 +192,31 @@ const SingleStudentPage = async ({
           <div className="mt-4 flex gap-4 flex-wrap text-xs text-gray-500">
             <Link
               className="p-3 rounded-md bg-SKlightsky"
-              href={`/list/lessons?classId=${2}`}
+              href={`/list/lessons?classId=${student.classId}`}
             >
               Student&apos;s Lessons
             </Link>
             <Link
               className="p-3 rounded-md bg-SKlightpurple"
-              href={`/list/teachers?classId=${2}`}
+              href={`/list/teachers?classId=${student.classId}`}
             >
               Student&apos;s Teachers
             </Link>
             <Link
               className="p-3 rounded-md bg-pink-50"
-              href={`/list/exams?classId=${2}`}
+              href={`/list/exams?classId=${student.classId}`}
             >
               Student&apos;s Exams
             </Link>
             <Link
               className="p-3 rounded-md bg-SKlightsky"
-              href={`/list/assignments?classId=${2}`}
+              href={`/list/assignments?classId=${student.classId}`}
             >
               Student&apos;s Assignments
             </Link>
             <Link
               className="p-3 rounded-md bg-SKlightyellow"
-              href={`/list/results?studentId=${"student2"}`}
+              href={`/list/results?studentId=${student.id}`}
             >
               Student&apos;s Results
             </Link>

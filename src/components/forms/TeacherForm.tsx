@@ -37,12 +37,11 @@ const TeacherForm = ({
     type === "create" ? createTeacher : updateTeacher,
     {
       success: false,
-      error: false,
+      error: false as string | boolean,
     }
   );
 
   const onSubmit = handleSubmit((data) => {
-    console.log(data);
     formAction({ ...data, img: img?.secure_url });
   });
 
@@ -56,7 +55,7 @@ const TeacherForm = ({
     }
   }, [state, router, type, setOpen]);
 
-  const { subjects } = relatedData;
+  const { subjects, usernames } = relatedData;
 
   return (
     <form className="flex flex-col gap-8" onSubmit={onSubmit}>
@@ -67,13 +66,23 @@ const TeacherForm = ({
         Authentication Information
       </span>
       <div className="flex justify-between flex-wrap gap-4">
-        <InputField
-          label="Username"
-          name="username"
-          defaultValue={data?.username}
-          register={register}
-          error={errors?.username}
-        />
+        {data ? (
+          <InputField
+            label="Username"
+            name="username"
+            defaultValue={usernames?.[0]?.username}
+            register={register}
+            error={errors?.username}
+          />
+        ) : (
+          <InputField
+            label="Username"
+            name="username"
+            register={register}
+            error={errors?.username}
+          />
+        )}
+
         <InputField
           label="Email"
           name="email"
@@ -85,7 +94,6 @@ const TeacherForm = ({
           label="Password"
           name="password"
           type="password"
-          defaultValue={data?.password}
           register={register}
           error={errors?.password}
         />
@@ -215,7 +223,7 @@ const TeacherForm = ({
       </div>
 
       {state.error && (
-        <span className="text-red-500">❌ Something went Wrong!</span>
+        <span className="text-red-500">❌ {state.error}</span>
       )}
       <button className="bg-blue-400 text-white p-2 rounded-md">
         {type === "create" ? "Create" : "Update"}

@@ -1,12 +1,11 @@
 import Announcements from "@/components/Announcements";
-import BigCalendar from "@/components/BigCalendar";
 import BigCalendarContainer from "@/components/BigCalendarContainer";
 import FormContainer from "@/components/FormContainer";
 import Performance from "@/components/Performance";
+import { getUserFromToken } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { getUserRole } from "@/lib/utils";
 import { Teacher } from "@prisma/client";
-import { count } from "console";
+import { cookies } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -16,26 +15,35 @@ const SingleTeacherPage = async ({
 }: {
   params: { id: string };
 }) => {
-  const teacher: (Teacher & {_count:{subjects:number; lessons:number; classes:number}}) | null = await prisma.teacher.findUnique({
+  const cookieStore = cookies();
+  const token = cookieStore.get("token")?.value;
+  if (!token) return <div>Please login</div>;
+
+  // Get user from token
+  const user = await getUserFromToken(token);
+  if (!user) return <div>User not found</div>;
+  const role = user.role.toLocaleLowerCase();
+
+  const teacher:
+    | (Teacher & {
+        _count: { subjects: number; lessons: number; classes: number };
+      })
+    | null = await prisma.teacher.findUnique({
     where: { id },
-    include:{
-        _count:{
-            select:{
-                subjects:true,
-                lessons:true,
-                classes:true,
-            }
-        }
-    }
+    include: {
+      _count: {
+        select: {
+          subjects: true,
+          lessons: true,
+          classes: true,
+        },
+      },
+    },
   });
 
-  if(!teacher) {
-    return notFound()
+  if (!teacher) {
+    return notFound();
   }
-
-  const role = await getUserRole();
-
-
 
   return (
     <div className="flex-1 p-4 flex flex-col gap-4 xl:flex-row">
@@ -55,10 +63,13 @@ const SingleTeacherPage = async ({
               />
             </div>
             <div className="w-2/3 flex flex-col justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <h1 className="text-xl font-semibold">{teacher.name + " " + teacher.surname}</h1>
+              <div className="flex items-center gap-4 justify-between">
+                <h1 className="text-xl font-semibold">
+                  {teacher.name + " " + teacher.surname}
+                </h1>
                 {role === "admin" && (
-                    <FormContainer table="teacher" type="update" data={teacher}/>)}
+                  <FormContainer table="teacher" type="update" data={teacher}  />
+                )}
               </div>
               <p className="text-sm text-gray-500">
                 Lorem, ipsum dolor sit amet consectetur adipisicing elit. Iste,
@@ -83,7 +94,9 @@ const SingleTeacherPage = async ({
                     height={14}
                     className="inline-block mr-1"
                   />
-                  <span>{new Intl.DateTimeFormat("en-US").format(teacher.birthday)}</span>
+                  <span>
+                    {new Intl.DateTimeFormat("en-US").format(teacher.birthday)}
+                  </span>
                 </div>
                 <div className="w-full md:w-1/3 lg:w-full 2xl:w-1/3 flex items-center gap-2">
                   <Image
@@ -134,7 +147,9 @@ const SingleTeacherPage = async ({
                 className="w-6 h-6"
               />
               <div className="">
-                <h1 className="text-xl font-semibold">{teacher._count.subjects}</h1>
+                <h1 className="text-xl font-semibold">
+                  {teacher._count.subjects}
+                </h1>
                 <span className="text-sm text-gray-400">Branches</span>
               </div>
             </div>
@@ -148,7 +163,9 @@ const SingleTeacherPage = async ({
                 className="w-6 h-6"
               />
               <div className="">
-                <h1 className="text-xl font-semibold">{teacher._count.lessons}</h1>
+                <h1 className="text-xl font-semibold">
+                  {teacher._count.lessons}
+                </h1>
                 <span className="text-sm text-gray-400">Lessons</span>
               </div>
             </div>
@@ -162,7 +179,9 @@ const SingleTeacherPage = async ({
                 className="w-6 h-6"
               />
               <div className="">
-                <h1 className="text-xl font-semibold">{teacher._count.classes}</h1>
+                <h1 className="text-xl font-semibold">
+                  {teacher._count.classes}
+                </h1>
                 <span className="text-sm text-gray-400">Classes</span>
               </div>
             </div>

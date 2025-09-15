@@ -1,6 +1,5 @@
 "use client"
 
-import Image from 'next/image';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const AttendanceChart = ({ data }: { data: { name: string, present: number, absent: number }[]; }) => {

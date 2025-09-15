@@ -1,13 +1,31 @@
-import { auth } from "@clerk/nextjs/server";
+// /lib/utils.ts
+import { cookies } from "next/headers";
+import prisma from "./prisma";
+import jwt from "jsonwebtoken";
 
-export async function getUserRole() {
-  const { sessionClaims } = await auth();
-  return (sessionClaims?.metadata as { role: string })?.role;
-}
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret"; // set in .env
 
-export async function getUserID() {
-  const { userId } = await auth();
-  return userId;
+export async function getCurrentUserServer() {
+  try {
+    const cookieStore = cookies();
+    const token = cookieStore.get("token")?.value;
+
+    if (!token) return null;
+
+    // Verify token
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; role: string };
+
+    // Fetch user from DB
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.id },
+      select: { id: true, role: true, name: true, email: true },
+    });
+
+    return user;
+  } catch (err) {
+    console.error("Error fetching current user:", err);
+    return null;
+  }
 }
 
 const currentWorkWeek = () => {

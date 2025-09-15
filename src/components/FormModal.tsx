@@ -1,6 +1,6 @@
 "use client";
 
-import { deleteClass, deleteStudent, deleteSubject, deleteTeacher } from "@/lib/actions";
+import { deleteClass, deleteLesson, deleteParent, deleteStudent, deleteSubject, deleteTeacher } from "@/lib/actions";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -14,8 +14,8 @@ const deleteActionMap = {
   class: deleteClass,
   teacher: deleteTeacher,
   student: deleteStudent,
-  parent: deleteSubject,
-  lesson: deleteSubject,
+  parent: deleteParent,
+  lesson: deleteLesson,
   exam: deleteSubject,
   assignment: deleteSubject,
   result: deleteSubject,
@@ -35,6 +35,18 @@ const SubjectForm = dynamic(() => import("./forms/SubjectForm"), {
 });
 
 const ClassForm = dynamic(() => import("./forms/ClassForm"), {
+  loading: () => <h1>Loading...</h1>,
+});
+
+const LessonForm = dynamic(() => import("./forms/LessonForm"), {
+  loading: () => <h1>Loading...</h1>,
+});
+
+const ParentForm = dynamic(() => import("./forms/ParentForm"), {
+  loading: () => <h1>Loading...</h1>,
+});
+
+const ExamForm = dynamic(() => import("./forms/ExamForm"), {
   loading: () => <h1>Loading...</h1>,
 });
 
@@ -58,6 +70,15 @@ const forms: {
   student: (setOpen, type, data, relatedData) => (
     <StudentForm type={type} data={data} setOpen={setOpen} relatedData={relatedData}/>
   ),
+  lesson: (setOpen, type, data, relatedData) => (
+    <LessonForm type={type} data={data} setOpen={setOpen} relatedData={relatedData}/>
+  ),
+  parent: (setOpen, type, data, relatedData) => (
+    <ParentForm type={type} data={data} setOpen={setOpen} relatedData={relatedData}/>
+  ),
+  exam: (setOpen, type, data, relatedData) => (
+    <ExamForm type={type} data={data} setOpen={setOpen} relatedData={relatedData}/>
+  ),
 };
 
 const FormModal = ({
@@ -80,7 +101,7 @@ const FormModal = ({
   const Form = () => {
     const [state, formAction] = useFormState(deleteActionMap[table], {
       success: false,
-      error: false,
+      error: false as string | boolean,
     });
 
     const router = useRouter();

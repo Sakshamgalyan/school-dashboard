@@ -1,52 +1,192 @@
-"use client"
+"use client";
 
-import * as Clerk from '@clerk/elements/common'
-import * as SignIn from '@clerk/elements/sign-in'
-import { useUser } from '@clerk/nextjs'
-import Image from 'next/image'
-import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useRouter } from "next/navigation";
+import { NextRequest, NextResponse } from "next/server";
+import { useState } from "react";
+import { toast } from "react-toastify";
+
+type FormState = {
+  username?: string;
+  email: string;
+  password: string;
+  role?: string;
+};
 
 const Loginpage = () => {
+  const router = useRouter();
+  const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
+  const [form, setForm] = useState<FormState>({
+    username: "",
+    email: "",
+    password: "",
+    role: "STUDENT",
+  });
+  const [error, setError] = useState("");
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
-    const { isSignedIn, user, isLoaded } = useUser();
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
 
-    const router = useRouter();
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsRedirecting(false);
 
-    useEffect(() => {
-      const role = user?.publicMetadata.role;
+    try {
+      const endpoint =
+        mode === "signIn" ? "/api/auth/login" : "/api/auth/register";
 
-      if(role){
-        router.push(`/${role}`)
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+        credentials: "include",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Something went wrong");
+        return;
       }
-    }, [user])
-    
 
-    return(
-        <div className="h-screen flex justify-center items-center bg-SKlightsky">
-            <SignIn.Root>
-                <SignIn.Step name='start' className='bg-white p-12 rounded-md shadow-2xl flex flex-col gap-2'>
-                    <h1 className='text-xl font-bold flex items-center gap-2'>
-                        <Image src='/logo.png' alt='' width={24} height={24}/>
-                        School Dashboard
-                    </h1>
-                    <h2 className='text-gray-400'>Sign in to your account</h2>
-                    <Clerk.GlobalError className='text-sm text-red-400'/>
-                    <Clerk.Field name="identifier" className='flex flex-col gap-2'>
-                        <Clerk.Label className='text-xs text-gray-500'>Username</Clerk.Label>
-                        <Clerk.Input type='text' required className='ring-1 ring-gray-300 p-2 rounded-md'/>
-                        <Clerk.FieldError className='text-xs text-red-400'/>
-                    </Clerk.Field>
-                    <Clerk.Field name="password" className='flex flex-col gap-2'>
-                        <Clerk.Label className='text-xs text-gray-500'>Password</Clerk.Label>
-                        <Clerk.Input type='password' required className='p-2 rounded-md ring-1 ring-gray-300'/>
-                        <Clerk.FieldError className='text-xs text-red-400'/>
-                    </Clerk.Field>
-                    <SignIn.Action submit className='bg-blue-500 text-white text-xs mt-2 rounded-md p-[10px] transition-all hover:scale-[1.02]'>Sign In</SignIn.Action>
-                </SignIn.Step>
-            </SignIn.Root>
-        </div>
-    )
-}
+      toast(mode === "signUp" ? "Account created!" : "Login successful!");
 
-export default Loginpage
+      if (mode === "signIn") {
+        if (data.role) {
+          setIsRedirecting(true);
+
+          // Start 10s timeout
+          const timeoutId = setTimeout(() => {
+            setIsRedirecting(false);
+            setError("Redirection failed. Please try again.");
+          }, 10000);
+
+          // Trigger navigation
+          router.replace(`/${data.role.toLowerCase()}`);
+
+          // Clear timeout right after calling replace (assuming it works)
+          clearTimeout(timeoutId);
+        } else {
+          setError("Login failed. Role not returned.");
+        }
+      } else {
+        // After sign-up, switch to login mode
+        setMode("signIn");
+        setForm({ email: "", password: "", role: "STUDENT" });
+      }
+    } catch (err) {
+      console.error("Request error:", err);
+      setError("Server error. Try again later.");
+    }
+  };
+
+  return (
+    <div className="h-screen flex justify-center items-center bg-SKlightsky">
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white p-12 rounded-md shadow-2xl flex flex-col gap-4 w-80"
+      >
+        <h1 className="text-xl font-bold text-center">School Dashboard</h1>
+        <h2 className="text-gray-400 text-center">
+          {mode === "signIn"
+            ? "Sign in to your account"
+            : "Create a new account"}
+        </h2>
+
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        {isRedirecting && (
+          <p className="text-sm text-blue-500">Redirecting...</p>
+        )}
+
+        {mode === "signUp" && (
+          <>
+            <input
+              type="text"
+              name="username"
+              placeholder="Username"
+              value={form.username}
+              onChange={handleChange}
+              required
+              className="p-2 rounded-md ring-1 ring-gray-300"
+            />
+            <select
+              name="role"
+              value={form.role}
+              onChange={handleChange}
+              required
+              className="p-2 rounded-md ring-1 ring-gray-300"
+            >
+              <option value="ADMIN">Admin</option>
+              <option value="TEACHER">Teacher</option>
+              <option value="STUDENT">Student</option>
+              <option value="PARENT">Parent</option>
+            </select>
+          </>
+        )}
+
+        <input
+          type="email"
+          name="email"
+          placeholder="Email"
+          value={form.email}
+          onChange={handleChange}
+          required
+          className="p-2 rounded-md ring-1 ring-gray-300"
+        />
+        <input
+          type="password"
+          name="password"
+          placeholder="Password"
+          value={form.password}
+          onChange={handleChange}
+          required
+          className="p-2 rounded-md ring-1 ring-gray-300"
+        />
+
+        <button
+          type="submit"
+          className="bg-blue-500 text-white text-sm mt-2 rounded-md p-[10px] transition-all hover:scale-[1.02]"
+          disabled={isRedirecting}
+        >
+          {mode === "signIn"
+            ? isRedirecting
+              ? "Redirecting..."
+              : "Sign In"
+            : "Sign Up"}
+        </button>
+
+        <p className="text-xs text-gray-500 mt-4 text-center">
+          {mode === "signIn" ? (
+            <>
+              Don&apos;st have an account?{" "}
+              <button
+                type="button"
+                onClick={() => setMode("signUp")}
+                className="text-blue-500 underline"
+              >
+                Sign Up
+              </button>
+            </>
+          ) : (
+            <>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={() => setMode("signIn")}
+                className="text-blue-500 underline"
+              >
+                Sign In
+              </button>
+            </>
+          )}
+        </p>
+      </form>
+    </div>
+  );
+};
+
+export default Loginpage;

@@ -1,11 +1,33 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "windows"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  name      String   @default("Unknown")
+  email     String?  @unique
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  Teacher Teacher?
+  Student Student?
+  Parent  Parent?
+}
+
+enum Role {
+  ADMIN
+  STUDENT
+  TEACHER
+  PARENT
 }
 
 model Admin {
@@ -15,7 +37,7 @@ model Admin {
 
 model Student {
   id         String       @id
-  username   String       @unique
+  user       User         @relation(fields: [id], references: [id])
   name       String
   surname    String
   email      String?      @unique
@@ -33,12 +55,12 @@ model Student {
   class      Class        @relation(fields: [classId], references: [id])
   grade      Grade        @relation(fields: [gradeId], references: [id])
   parent     Parent       @relation(fields: [parentId], references: [id])
-  birthday DateTime
+  birthday   DateTime
 }
 
 model Teacher {
   id        String    @id
-  username  String    @unique
+  user      User      @relation(fields: [id], references: [id])
   name      String
   surname   String
   email     String?   @unique
@@ -51,12 +73,12 @@ model Teacher {
   classes   Class[]
   lessons   Lesson[]
   subjects  Subject[] @relation("SubjectToTeacher")
-  birthday DateTime
+  birthday  DateTime
 }
 
 model Parent {
   id        String    @id
-  username  String    @unique
+  user      User      @relation(fields: [id], references: [id])
   name      String
   surname   String
   email     String?   @unique
@@ -172,6 +194,15 @@ model Announcement {
   date        DateTime
   classId     Int?
   class       Class?   @relation(fields: [classId], references: [id])
+}
+
+model Video {
+  id        String   @id @default(uuid())
+  title     String
+  videoUrl  String
+  thumbnail String? 
+  views     Int?      @default(0)
+  createdAt DateTime @default(now())
 }
 
 enum UserSex {

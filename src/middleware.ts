@@ -1,74 +1,104 @@
-// import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
-// import { clerkClient } from '@clerk/clerk-sdk-node'; 
-// import { routeAccessMap } from './lib/settings';
-// import { NextResponse } from 'next/server';
-
-// const matchers = Object.keys(routeAccessMap).map((route) => ({
-//   matcher: createRouteMatcher([`${route}`]),
-//   allowedRoles: routeAccessMap[route],
-// }));
-// console.log(matchers)
-
-// export default clerkMiddleware(async (auth, req) => {
-//   const { userId } = await auth();
-
-//   let role: string | undefined;
-//   if (userId) {
-//     const user = await clerkClient.users.getUser(userId);
-//     role = (user.publicMetadata as { role?: string })?.role;
-//   }
-
-//   const pathname = req.nextUrl.pathname;
-
-//   for (const { matcher, allowedRoles } of matchers) {
-//     if (matcher(req)) {
-//       // If role is missing or not allowed, redirect to role-specific home
-//       if (!role || !allowedRoles.includes(role)) {
-//         // Avoid infinite loop if already on the redirect page
-//         if (pathname !== `/${role || 'unauthorized'}`) {
-//           return NextResponse.redirect(new URL(`/${role || 'unauthorized'}`, req.url));
-//         }
-//       }
-//     }
-//   }
-// });
-
-// export const config = {
-//   matcher: [
-//     '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
-//     '/(api|trpc)(.*)',
-//   ],
-// };
-
-
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { routeAccessMap } from "./lib/settings";
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { jwtVerify } from "jose";
+import { routeAccessMap } from "./lib/settings";
 
-const matchers = Object.keys(routeAccessMap).map((route) => ({
-  matcher: createRouteMatcher([route]),
-  allowedRoles: routeAccessMap[route],
-}));
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
-export default clerkMiddleware(async (auth, req) => {
-  // if (isProtectedRoute(req)) auth().protect()
+const roleRedirects: Record<string, string> = {
+  admin: "/admin",
+  student: "/student",
+  teacher: "/teacher",
+  parent: "/parent",
+};
 
-  const { sessionClaims } = await auth();
+export async function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
 
-  const role = (sessionClaims?.metadata as { role?: string })?.role;
+  // 1️⃣ Always allow public assets & auth APIs
+  if (
+    pathname.startsWith("/api/") ||
+    pathname.startsWith("/_next") ||
+    pathname.startsWith("/uploads/") || // ✅ allow uploads
+    pathname === "/favicon.ico" ||
+    pathname.match(/\.(png|jpg|jpeg|gif|svg|ico|webp|m3u8|ts)$/)
+  ) {
+    return NextResponse.next();
+  }
 
-  for (const { matcher, allowedRoles } of matchers) {
-    if (matcher(req) && !allowedRoles.includes(role!)) {
-      return NextResponse.redirect(new URL(`/${role}`, req.url));
+  const token = req.cookies.get("token")?.value;
+
+  // 2️⃣ Redirect logged-in users away from login/register pages
+  if (pathname === "/") {
+    if (token) {
+      try {
+        const secret = new TextEncoder().encode(JWT_SECRET);
+        const { payload } = await jwtVerify(token, secret);
+        const userRole = (payload.role as string | undefined)?.toLowerCase();
+        if (userRole && roleRedirects[userRole]) {
+          return NextResponse.redirect(
+            new URL(roleRedirects[userRole], req.url)
+          );
+        }
+        return NextResponse.redirect(new URL("/dashboard", req.url));
+      } catch {
+        return NextResponse.next(); // invalid token → allow login
+      }
+    }
+    return NextResponse.next(); // not logged in → allow
+  }
+
+  // 3️⃣ Determine allowed roles for this path
+  let allowedRoles: string[] | null = null;
+  for (const [pattern, roles] of Object.entries(routeAccessMap)) {
+    const regex = new RegExp(`^${pattern}$`, "i");
+    if (regex.test(pathname)) {
+      allowedRoles = roles.map((r) => r.toLowerCase());
+      break;
     }
   }
-});
 
+  // 4️⃣ Unknown path → redirect to "/"
+  if (allowedRoles === null) {
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+
+  // 5️⃣ Public path → allow
+  if (allowedRoles.length === 0) {
+    return NextResponse.next();
+  }
+
+  // 6️⃣ Require token for protected paths
+  if (!token) {
+    console.log(
+      `[Middleware] No token found, redirecting to / for ${pathname}`
+    );
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+
+  try {
+    const secret = new TextEncoder().encode(JWT_SECRET);
+    const { payload } = await jwtVerify(token, secret);
+
+    const userRole = (payload.role as string | undefined)?.toLowerCase();
+
+    // 7️⃣ Role-based access
+    if (!userRole || !allowedRoles.includes(userRole)) {
+      console.log(
+        `[Middleware] Role '${userRole}' not allowed on ${pathname}, redirecting to /`
+      );
+      return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    // ✅ Authorized
+    return NextResponse.next();
+  } catch (err) {
+    console.log("[Middleware] JWT verification failed:", err);
+    return NextResponse.redirect(new URL("/", req.url));
+  }
+}
+
+// 8️⃣ Config
 export const config = {
-  matcher: [
-    // Skip Next.js internals and all static files, unless found in search params
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
-    // Always run for API routes
-    "/(api|trpc)(.*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/auth|uploads).*)"],
 };

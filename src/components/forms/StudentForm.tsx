@@ -8,17 +8,13 @@ import { Dispatch, SetStateAction, useEffect, useState } from "react";
 import {
   studentSchema,
   StudentSchema,
-  teacherSchema,
-  TeacherSchema,
 } from "@/lib/formValidationSchemas";
 import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import { useFormState } from "react-dom";
 import {
   createStudent,
-  createTeacher,
   updateStudent,
-  updateTeacher,
 } from "@/lib/actions";
 import { CldUploadWidget } from "next-cloudinary";
 
@@ -47,7 +43,7 @@ const StudentForm = ({
     type === "create" ? createStudent : updateStudent,
     {
       success: false,
-      error: false,
+      error: false as string | boolean,
     }
   );
 
@@ -67,7 +63,7 @@ const StudentForm = ({
     }
   }, [state, router, type, setOpen]);
 
-  const { grades, classes } = relatedData;
+  const { grades, classes, usernames } = relatedData;
 
   return (
     <form className="flex flex-col gap-8" onSubmit={onSubmit}>
@@ -78,13 +74,22 @@ const StudentForm = ({
         Authentication Information
       </span>
       <div className="flex justify-between flex-wrap gap-4">
-        <InputField
-          label="Username"
-          name="username"
-          defaultValue={data?.username}
-          register={register}
-          error={errors?.username}
-        />
+        {data ? (
+          <InputField
+            label="Username"
+            name="username"
+            defaultValue={usernames?.user?.username}
+            register={register}
+            error={errors?.username}
+          />
+        ) : (
+          <InputField
+            label="Username"
+            name="username"
+            register={register}
+            error={errors?.username}
+          />
+        )}
         <InputField
           label="Email"
           name="email"
@@ -187,13 +192,23 @@ const StudentForm = ({
           error={errors?.birthday}
           type="date"
         />
-        <InputField
-          label="Parent Id"
-          name="parentId"
-          defaultValue={data?.parentId}
+        {data ? (
+          <InputField
+          label="Parent Username"
+          name="parentUsername"
+          defaultValue={usernames?.parent?.user?.username} 
           register={register}
-          error={errors?.parentId }
+          error={errors?.parentUsername }
         />
+        ) : (
+          <InputField
+          label="Parent Username"
+          name="parentUsername"
+          register={register}
+          error={errors?.parentUsername }
+        />
+        )}
+        
         <div className="flex flex-col gap-2 w-full md:w-1/4 ">
           <label className="text-xs text-gray-500">Sex</label>
           <select
@@ -263,7 +278,7 @@ const StudentForm = ({
       </div>
 
       {state.error && (
-        <span className="text-red-500">❌ Something went Wrong!</span>
+        <span className="text-red-500">❌ {state.error}</span>
       )}
       <button className="bg-blue-400 text-white p-2 rounded-md">
         {type === "create" ? "Create" : "Update"}

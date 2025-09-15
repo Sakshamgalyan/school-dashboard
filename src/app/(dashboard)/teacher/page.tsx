@@ -1,16 +1,27 @@
+
 import Announcements from "@/components/Announcements"
 import BigCalendarContainer from "@/components/BigCalendarContainer"
-import { auth } from "@clerk/nextjs/server"
+import { getUserFromToken } from "@/lib/auth";
+import { cookies } from "next/headers";
 
 const Teacherpage = async () => {
-  const { userId } = await auth();
+
+  // Get token from cookies
+    const cookieStore = cookies();
+    const token = cookieStore.get("token")?.value;
+    if (!token) return <div>Please login</div>;
+  
+    // Get user from token
+    const user = await getUserFromToken(token);
+    if (!user) return <div>User not found</div>;
+  
   return (
     <div className="flex p-4 gap-4 flex-col xl:flex-row">
       {/* Left  */}
       <div className="w-full xl:w-2/3 flex flex-col gap-8">
       <div className="h-full bg-white p-4 rounded-md shadow-md">
         <h1 className="text-lg font-semibold">Schedule</h1>
-        <BigCalendarContainer type="teacherId" id={userId!} />
+        <BigCalendarContainer type="teacherId" id={user.id!} />
       </div>
       </div>
 

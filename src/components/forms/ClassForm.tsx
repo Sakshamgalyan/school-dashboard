@@ -117,6 +117,7 @@ const ClassForm = ({
             // defaultValue={data?.teachers}
             defaultValue={data?.gradeId}
           >
+            <option value="">Select Grade</option>
             {grades.map((grade: { id: number; level: number }) => (
               <option value={grade.id} key={grade.id} selected={data && grade.id === data.gradeId}>
                 {grade.level}
