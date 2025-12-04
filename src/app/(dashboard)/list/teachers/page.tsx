@@ -41,7 +41,7 @@ const TeacherListPage = async ({
       if (value !== undefined) {
         switch (key) {
           case "classId":
-            const classId = parseInt(value);
+            const classId = value;
             query.OR = [
               { lessons: { some: { classId } } },
               { classes: { some: { id: classId } } },

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const subjectSchema = z.object({
-  id: z.coerce.number().optional(),
+  id: z.string().optional(),
   name: z.string().min(1, { message: "Subject Name is required!" }),
   teachers: z.array(z.string()),
 });
@@ -9,11 +9,11 @@ export const subjectSchema = z.object({
 export type SubjectSchema = z.infer<typeof subjectSchema>;
 
 export const classSchema = z.object({
-  id: z.coerce.number().optional(),
+  id: z.string().optional(),
   name: z.string().min(1, { message: "Class name is required!" }),
   capacity: z.coerce.number().min(1, { message: "Capacity is required!" }),
-  gradeId: z.coerce.number().min(1, { message: "Grade is required!" }),
-  supervisorId: z.coerce.string().optional(),
+  gradeId: z.string().min(1, { message: "Grade is required!" }),
+  supervisorId: z.string().optional(),
 });
 
 export type ClassSchema = z.infer<typeof classSchema>;
@@ -72,15 +72,15 @@ export const studentSchema = z.object({
   bloodType: z.string().min(1, { message: "Blood Type is required!" }),
   birthday: z.coerce.date({ message: "Birthday is required!" }),
   sex: z.enum(["MALE", "FEMALE"], { message: "Sex is required!" }),
-  gradeId: z.coerce.number().min(1, { message: "Grade is required" }),
-  classId: z.coerce.number().min(1, { message: "Class is required" }),
+  gradeId: z.string().min(1, { message: "Grade is required" }),
+  classId: z.string().min(1, { message: "Class is required" }),
   parentUsername: z.string().min(1, { message: "Parent Username is required" }),
 });
 
 export type StudentSchema = z.infer<typeof studentSchema>;
 
 export const lessonSchema = z.object({
-  id: z.coerce.number().optional(),
+  id: z.string().optional(),
   subjectId: z.array(z.string()),
   classId: z.array(z.string()),
   teacherId: z.array(z.string()),
@@ -101,19 +101,19 @@ export const parentSchema = z.object({
     .or(z.literal("")),
   name: z.string().min(1, { message: "First name is required!" }),
   surname: z.string().min(1, { message: "Last name is required!" }),
-  email: z  
+  email: z
     .string()
     .min(8, { message: "Invalid email address!" })
     .optional()
     .or(z.literal("")),
-  phone: z.string().min(1, { message: "Phone number is required!"}),
+  phone: z.string().min(1, { message: "Phone number is required!" }),
   address: z.string(),
 });
 
 export type ParentSchema = z.infer<typeof parentSchema>;
 
 export const examSchema = z.object({
-  id: z.coerce.number().optional(),
+  id: z.string().optional(),
   subjectId: z.array(z.string()),
   classId: z.array(z.string()),
   teacherId: z.array(z.string()),

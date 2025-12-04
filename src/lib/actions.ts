@@ -74,7 +74,7 @@ export const deleteSubject = async (
     const id = data.get("id") as string;
     await prisma.subject.delete({
       where: {
-        id: parseInt(id),
+        id: id,
       },
     });
     // revalidatePath("/list/subjects");
@@ -130,7 +130,7 @@ export const deleteClass = async (
     const id = data.get("id") as string;
     await prisma.class.delete({
       where: {
-        id: parseInt(id),
+        id: id,
       },
     });
     // revalidatePath("/list/subjects");
@@ -182,6 +182,7 @@ export const createTeacher = async (
     await prisma.teacher.create({
       data: {
         id: user.id,
+        userId: user.id,
         name: data.name,
         surname: data.surname,
         email: data.email,
@@ -193,7 +194,7 @@ export const createTeacher = async (
         birthday: new Date(data.birthday),
         subjects: {
           connect: data.subjects?.map((subjectId: string) => ({
-            id: parseInt(subjectId),
+            id: subjectId,
           })),
         },
       },
@@ -262,7 +263,7 @@ export const updateTeacher = async (
         birthday: data.birthday,
         subjects: {
           set: data.subjects?.map((subjectId: string) => ({
-            id: parseInt(subjectId),
+            id: subjectId,
           })),
         },
       },
@@ -354,6 +355,7 @@ export const createStudent = async (
     await prisma.student.create({
       data: {
         id: user.id,
+        userId: user.id,
         name: data.name,
         surname: data.surname,
         email: data.email || null,
@@ -586,6 +588,7 @@ export const createParent = async (
     await prisma.parent.create({
       data: {
         id: user.id,
+        userId: user.id,
         name: data.name,
         surname: data.surname,
         email: data.email || null,
@@ -742,7 +745,7 @@ export const deleteExam = async (
     const id = data.get("id") as string;
     await prisma.subject.delete({
       where: {
-        id: parseInt(id),
+        id: id,
       },
     });
     // revalidatePath("/list/subjects");

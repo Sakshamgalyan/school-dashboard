@@ -39,7 +39,7 @@ const LessonListPage = async ({
       if (value !== undefined) {
         switch (key) {
           case "classId":
-            query.classId = parseInt(value);
+            query.classId = value;
             break;
           case "teacherId":
             query.teacherId = value;

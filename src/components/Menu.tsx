@@ -55,7 +55,7 @@ const Menu = () => {
       items: [
         { icon: "/profile.png", label: "Profile", href: "/", visible: ["admin", "teacher", "student", "parent"] },
         { icon: "/setting.png", label: "Settings", href: "/", visible: ["admin", "teacher", "student", "parent"] },
-        { icon: "/logout.png", label: "Logout", action: handleLogout, href: "#", visible: ["admin", "teacher", "student", "parent"] },
+        { icon: "/logout.png", label: "Logout", href: "/", action: handleLogout, visible: ["admin", "teacher", "student", "parent"] },
       ],
     },
   ];
