@@ -1,10 +1,6 @@
+// /app/api/startStream/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import {
-  spawnFFmpeg,
-  testDevice,
-  getDevices,
-  buildHlsArgs,
-} from "@/lib/ffmpeg-utils";
+import { spawnFFmpeg, buildHlsArgs } from "@/lib/ffmpeg-utils";
 import path from "path";
 import fs from "fs";
 
@@ -18,7 +14,6 @@ if (!fs.existsSync(hlsPath)) {
   fs.mkdirSync(hlsPath, { recursive: true });
 }
 
-// Helper: clean HLS folder
 function clearHlsFolder() {
   if (fs.existsSync(hlsPath)) {
     fs.readdirSync(hlsPath).forEach((file) => {
@@ -29,42 +24,21 @@ function clearHlsFolder() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { title, camera, microphone } = await req.json();
+    const { title } = await req.json().catch(() => ({}));
     if (title) currentTitle = title;
 
-    // 🔹 Kill existing stream if running
+    // Kill existing stream if running
     if (ffmpegProcess) {
       ffmpegProcess.kill("SIGINT");
       ffmpegProcess = null;
     }
 
-    // 🔹 Clean old HLS files
+    // Clean old HLS files
     clearHlsFolder();
 
-    // 🔹 Get available devices
-    const devices = await getDevices();
-
-    const selectedCamera = camera || devices.cameras[0];
-    const selectedMic = microphone || devices.microphones[0];
-
-    const [cameraWorks, micWorks] = await Promise.all([
-      testDevice(selectedCamera, "video"),
-      testDevice(selectedMic, "audio"),
-    ]);
-
-    if (!cameraWorks && !micWorks) {
-      return NextResponse.json(
-        { error: "No working camera or microphone found" },
-        { status: 400 }
-      );
-    }
-
-    // 🔹 Build FFmpeg args & spawn
-    const args = buildHlsArgs(
-      cameraWorks ? selectedCamera : devices.cameras[0],
-      micWorks ? selectedMic : devices.microphones[0],
-      hlsPath
-    );
+    // Build args for this platform (Linux: /dev/video0 + default)
+    const args = buildHlsArgs(hlsPath);
+    console.log("Starting FFmpeg with args:", args.join(" "));
 
     ffmpegProcess = spawnFFmpeg(args);
 
@@ -72,8 +46,12 @@ export async function POST(req: NextRequest) {
       console.log("FFmpeg:", data.toString());
     });
 
-    ffmpegProcess.on("close", () => {
-      console.log("FFmpeg process closed");
+    ffmpegProcess.on("error", (err) => {
+      console.error("FFmpeg spawn error:", err);
+    });
+
+    ffmpegProcess.on("close", (code) => {
+      console.log("FFmpeg process closed with code", code);
       ffmpegProcess = null;
     });
 

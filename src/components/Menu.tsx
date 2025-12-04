@@ -4,10 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import SettingsModal from "./Settings";
 
 const Menu = () => {
   const router = useRouter();
   const [role, setRole] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Fetch user role from API
   useEffect(() => {
@@ -27,6 +29,10 @@ const Menu = () => {
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { credentials: "include" });
     router.push("/");
+  };
+
+  const handleSettingsClick = () => {
+    setIsSettingsOpen(true);
   };
 
   const menuItems = [
@@ -54,8 +60,8 @@ const Menu = () => {
       title: "OTHER",
       items: [
         { icon: "/profile.png", label: "Profile", href: "/", visible: ["admin", "teacher", "student", "parent"] },
-        { icon: "/setting.png", label: "Settings", href: "/", visible: ["admin", "teacher", "student", "parent"] },
-        { icon: "/logout.png", label: "Logout", href: "/", action: handleLogout, visible: ["admin", "teacher", "student", "parent"] },
+        { icon: "/setting.png", label: "Settings", href: "#", action: handleSettingsClick, visible: ["admin", "teacher", "student", "parent"] },
+        { icon: "/logout.png", label: "Logout", href: "#", action: handleLogout, visible: ["admin", "teacher", "student", "parent"] },
       ],
     },
   ];
@@ -64,43 +70,47 @@ const Menu = () => {
     // Loader while fetching role
     return <div className="text-gray-400 p-4">Loading menu...</div>;
   }
-  else{
 
   return (
-    <div className="mt-4 text-xs lg:mx-1">
-      {menuItems.map((section) => (
-        <div className="flex flex-col gap-2" key={section.title}>
-          <span className="hidden lg:block text-gray-400 font-light my-4">
-            {section.title}
-          </span>
-          {section.items.map((item) => {
-            if (item.visible.includes(role)) {
-              return (
-                <div
-                  key={item.label}
-                  className="flex items-center justify-center lg:justify-start gap-4 md:px-2 text-gray-500 py-2 rounded-md hover:bg-SKlightsky cursor-pointer"
-                  onClick={item.action ? item.action : undefined}
-                >
-                  {!item.action ? (
-                    <Link href={item.href} className="flex items-center">
-                      <Image src={item.icon} alt={item.label} width={20} height={20} />
-                      <span className="hidden lg:block mx-2 text-sm">{item.label}</span>
-                    </Link>
-                  ) : (
-                    <div className="flex items-center">
-                      <Image src={item.icon} alt={item.label} width={20} height={20} />
-                      <span className="hidden lg:block mx-2 text-sm">{item.label}</span>
-                    </div>
-                  )}
-                </div>
-              );
-            }
-            return null;
-          })}
-        </div>
-      ))}
-    </div>
+    <>
+      <div className="mt-4 text-xs lg:mx-1">
+        {menuItems.map((section) => (
+          <div className="flex flex-col gap-2" key={section.title}>
+            <span className="hidden lg:block text-gray-400 font-light my-4">
+              {section.title}
+            </span>
+            {section.items.map((item) => {
+              if (item.visible.includes(role)) {
+                return (
+                  <div
+                    key={item.label}
+                    className="flex items-center justify-center lg:justify-start gap-4 md:px-2 text-gray-500 py-2 rounded-md hover:bg-SKlightsky cursor-pointer"
+                    onClick={item.action ? item.action : undefined}
+                  >
+                    {!item.action ? (
+                      <Link href={item.href} className="flex items-center">
+                        <Image src={item.icon} alt={item.label} width={20} height={20} />
+                        <span className="hidden lg:block mx-2 text-sm">{item.label}</span>
+                      </Link>
+                    ) : (
+                      <div className="flex items-center">
+                        <Image src={item.icon} alt={item.label} width={20} height={20} />
+                        <span className="hidden lg:block mx-2 text-sm">{item.label}</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </div>
+        ))}
+      </div>
+
+      {/* Settings Modal */}
+      <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+    </>
   );
 };
-}
+
 export default Menu;

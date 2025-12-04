@@ -31,7 +31,7 @@ export default function LivePage() {
           credentials: "include",
         });
         const data = await res.json();
-        if (res.ok && data.role) setRole(data.role.toLowerCase());
+        if (res.ok && data.role) setRole(String(data.role).toLowerCase());
       } catch (err) {
         console.error("Fetch failed:", err);
       }
@@ -39,64 +39,75 @@ export default function LivePage() {
     fetchUser();
   }, []);
 
-  // 🔹 Fetch available devices
+  // 🔹 Fetch available devices (only for teacher)
   useEffect(() => {
-    const fetchDevices = async () => {
-      try {
-        const res = await fetch("/api/cameras");
-        const data = await res.json();
-        if (res.ok) {
-          setCameras(data.cameras || []);
-          setMicrophones(data.microphones || []);
+    if (role !== "teacher") return; // ⬅️ students won't get camera prompt
 
-          if (data.cameras?.length > 0) setSelectedCamera(data.cameras[0]);
-          if (data.microphones?.length > 0)
-            setSelectedMicrophone(data.microphones[0]);
-        }
+    const loadDevices = async () => {
+      try {
+        // Ask permission once so labels/deviceIds are available
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter((d) => d.kind === "videoinput");
+        const audioInputs = devices.filter((d) => d.kind === "audioinput");
+
+        const cameraIds = videoInputs.map((d) => d.deviceId);
+        const micIds = audioInputs.map((d) => d.deviceId);
+
+        setCameras(cameraIds);
+        setMicrophones(micIds);
+
+        if (cameraIds[0]) setSelectedCamera(cameraIds[0]);
+        if (micIds[0]) setSelectedMicrophone(micIds[0]);
       } catch (err) {
-        console.error("Failed to load devices:", err);
+        console.error("Failed to get media devices:", err);
+        setError("Cannot access camera/microphone. Please check permissions.");
       }
     };
 
-    fetchDevices();
-  }, []);
+    loadDevices();
+  }, [role]);
 
   // 🎥 Teacher Preview
-useEffect(() => {
-  if (role !== "teacher" || !previewRef.current) return;
+  useEffect(() => {
+    if (role !== "teacher" || !previewRef.current) return;
 
-  const videoEl = previewRef.current; // ✅ Copy ref to variable
-  let localStream: MediaStream | null = null;
+    const videoEl = previewRef.current;
+    let localStream: MediaStream | null = null;
 
-  const startPreview = async () => {
-    try {
-      localStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 1280, height: 720, deviceId: selectedCamera || undefined },
-        audio: false,
-      });
-      if (videoEl) {
-        videoEl.srcObject = localStream;
-        await videoEl.play().catch(() => {});
+    const startPreview = async () => {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: 1280,
+            height: 720,
+            deviceId: selectedCamera || undefined,
+          },
+          audio: false,
+        });
+        if (videoEl) {
+          videoEl.srcObject = localStream;
+          await videoEl.play().catch(() => {});
+        }
+      } catch (err) {
+        console.error("Cannot access camera:", err);
+        setError("Cannot access camera. Please check permissions.");
       }
-    } catch (err) {
-      console.error("Cannot access camera:", err);
-      setError("Cannot access camera. Please check permissions.");
-    }
-  };
+    };
 
-  startPreview();
+    startPreview();
 
-  return () => {
-    if (localStream) {
-      localStream.getTracks().forEach((track) => track.stop());
-      localStream = null;
-    }
-    if (videoEl) {
-      videoEl.srcObject = null;
-    }
-  };
-}, [role, selectedCamera]);
-
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach((track) => track.stop());
+        localStream = null;
+      }
+      if (videoEl) {
+        videoEl.srcObject = null;
+      }
+    };
+  }, [role, selectedCamera]);
 
   // 📺 Student video player
   useEffect(() => {
@@ -203,7 +214,7 @@ useEffect(() => {
 
   // ❤️ Heartbeat every 10s
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval> | undefined;
 
     if (isLive && role === "teacher") {
       interval = setInterval(async () => {
@@ -215,7 +226,9 @@ useEffect(() => {
       }, 10000);
     }
 
-    return () => clearInterval(interval);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
   }, [isLive, role]);
 
   return (
@@ -257,9 +270,9 @@ useEffect(() => {
               onChange={(e) => setSelectedCamera(e.target.value)}
               className="bg-gray-800 px-4 py-2 rounded-lg border border-gray-600"
             >
-              {cameras.map((cam, i) => (
-                <option key={i} value={cam}>
-                  {cam}
+              {cameras.map((camId, i) => (
+                <option key={camId} value={camId}>
+                  Camera {i + 1}
                 </option>
               ))}
             </select>
@@ -269,9 +282,9 @@ useEffect(() => {
               onChange={(e) => setSelectedMicrophone(e.target.value)}
               className="bg-gray-800 px-4 py-2 rounded-lg border border-gray-600"
             >
-              {microphones.map((mic, i) => (
-                <option key={i} value={mic}>
-                  {mic}
+              {microphones.map((micId, i) => (
+                <option key={micId} value={micId}>
+                  Microphone {i + 1}
                 </option>
               ))}
             </select>
