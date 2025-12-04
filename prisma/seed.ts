@@ -1,3 +1,4 @@
+// prisma/seed.ts
 import { PrismaClient, Role, UserSex } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -27,6 +28,7 @@ async function main() {
       update: {},
       create: { ...admin, password: hashedPassword, role: Role.ADMIN },
     });
+
     await prisma.admin.upsert({
       where: { id: user.id },
       update: {},
@@ -35,29 +37,46 @@ async function main() {
   }
 
   // ===== GRADES =====
-  for (let i = 1; i <= 6; i++) {
+  for (let level = 1; level <= 6; level++) {
     await prisma.grade.upsert({
-      where: { level: i },
+      where: { level },
       update: {},
-      create: { level: i },
+      create: { level },
     });
   }
 
+  // Map: level -> gradeId
+  const grades = await prisma.grade.findMany();
+  const gradeIdByLevel = grades.reduce<Record<number, string>>((acc, grade) => {
+    acc[grade.level] = grade.id;
+    return acc;
+  }, {});
+
   // ===== CLASSES =====
   for (let i = 1; i <= 6; i++) {
+    const gradeId = gradeIdByLevel[i];
+    if (!gradeId) throw new Error(`No Grade found for level ${i}`);
+
     await prisma.class.upsert({
       where: { name: `${i}A` },
       update: {},
       create: {
         name: `${i}A`,
-        gradeId: i,
+        gradeId,
         capacity: Math.floor(Math.random() * 6) + 15,
       },
     });
   }
 
+  // Map: className -> classId
+  const classes = await prisma.class.findMany();
+  const classIdByName = classes.reduce<Record<string, string>>((acc, c) => {
+    acc[c.name] = c.id;
+    return acc;
+  }, {});
+
   // ===== SUBJECTS =====
-  const subjects = [
+  const subjectNames = [
     "Mathematics",
     "Science",
     "English",
@@ -69,7 +88,8 @@ async function main() {
     "Computer Science",
     "Art",
   ];
-  for (const name of subjects) {
+
+  for (const name of subjectNames) {
     await prisma.subject.upsert({
       where: { name },
       update: {},
@@ -77,9 +97,20 @@ async function main() {
     });
   }
 
+  // Map: subjectName -> subjectId
+  const subjectRecords = await prisma.subject.findMany();
+  const subjectIdByName = subjectRecords.reduce<Record<string, string>>(
+    (acc, s) => {
+      acc[s.name] = s.id;
+      return acc;
+    },
+    {}
+  );
+
   // ===== TEACHERS =====
   for (let i = 1; i <= 15; i++) {
     const hashedPassword = await bcrypt.hash("teacherpass", 10);
+
     const user = await prisma.user.upsert({
       where: { username: `teacher${i}` },
       update: {},
@@ -92,11 +123,18 @@ async function main() {
       },
     });
 
+    const subjectName = subjectNames[(i - 1) % subjectNames.length];
+    const subjectId = subjectIdByName[subjectName];
+
+    const className = `${((i - 1) % 6) + 1}A`;
+    const classId = classIdByName[className];
+
     await prisma.teacher.upsert({
       where: { id: user.id },
       update: {},
       create: {
         id: user.id,
+        userId: user.id, // 🔑 required by schema
         name: `TName${i}`,
         surname: `TSurname${i}`,
         email: user.email,
@@ -107,8 +145,9 @@ async function main() {
         birthday: new Date(
           new Date().setFullYear(new Date().getFullYear() - 30)
         ),
-        subjects: { connect: [{ id: ((i - 1) % 10) + 1 }] },
-        classes: { connect: [{ id: ((i - 1) % 6) + 1 }] },
+        // connect one subject and one class (if found)
+        subjects: subjectId ? { connect: [{ id: subjectId }] } : undefined,
+        classes: classId ? { connect: [{ id: classId }] } : undefined,
       },
     });
   }
@@ -116,6 +155,7 @@ async function main() {
   // ===== PARENTS =====
   for (let i = 1; i <= 25; i++) {
     const hashedPassword = await bcrypt.hash("parentpass", 10);
+
     const user = await prisma.user.upsert({
       where: { username: `parent${i}` },
       update: {},
@@ -133,6 +173,7 @@ async function main() {
       update: {},
       create: {
         id: user.id,
+        userId: user.id, // 🔑 required by schema
         name: `PName${i}`,
         surname: `PSurname${i}`,
         email: user.email,
@@ -145,6 +186,7 @@ async function main() {
   // ===== STUDENTS =====
   for (let i = 1; i <= 50; i++) {
     const hashedPassword = await bcrypt.hash("studentpass", 10);
+
     const user = await prisma.user.upsert({
       where: { username: `student${i}` },
       update: {},
@@ -164,11 +206,17 @@ async function main() {
     });
     if (!parentUser?.Parent) continue;
 
+    const gradeLevel = ((i - 1) % 6) + 1;
+    const gradeId = gradeIdByLevel[gradeLevel];
+    const className = `${((i - 1) % 6) + 1}A`;
+    const classId = classIdByName[className];
+
     await prisma.student.upsert({
       where: { id: user.id },
       update: {},
       create: {
         id: user.id,
+        userId: user.id, // 🔑 required by schema
         name: `SName${i}`,
         surname: `SSurname${i}`,
         email: user.email,
@@ -176,9 +224,9 @@ async function main() {
         address: `Address${i}`,
         bloodType: "O-",
         sex: i % 2 === 0 ? UserSex.MALE : UserSex.FEMALE,
-        parentId: parentUser.Parent.id, // ✅ correct parentId
-        gradeId: ((i - 1) % 6) + 1,
-        classId: ((i - 1) % 6) + 1,
+        parentId: parentUser.Parent.id,
+        gradeId,
+        classId,
         birthday: new Date(
           new Date().setFullYear(new Date().getFullYear() - 10)
         ),
